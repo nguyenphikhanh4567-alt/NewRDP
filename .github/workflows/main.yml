@@ -1,0 +1,231 @@
+name: 🚀 SERVER ducthanggaming
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Thoi gian su dung'
+        required: false
+        default: '1_Gio_30_Phut_(90m)'
+        type: choice
+        options:
+          - '30_Phut_(30m)'
+          - '1_Gio_(60m)'
+          - '1_Gio_30_Phut_(90m)'
+          - '2_Gio_(120m)'
+          - '2_Gio_30_Phut_(150m)'
+          - '3_Gio_(180m)'
+          - '3_Gio_30_Phut_(210m)'
+          - '4_Gio_(240m)'
+          - '4_Gio_30_Phut_(270m)'
+          - '5_Gio_(300m)'
+          - '5_Gio_30_Phut_(330m)'
+          - '6_Gio_(360m)'
+jobs:
+  Ducthanggaming-RDP-Setup:
+    runs-on: windows-latest
+    steps:
+      - name: Khoi dong he thong
+        shell: powershell
+        run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+          chcp 65001 > $null
+         
+          Write-Host "`n ducthanggaming RDP SERVER" -ForegroundColor Yellow
+          Write-Host " Powered by ducthanggaming" -ForegroundColor Green
+          Write-Host " Thoi gian: ${{ github.event.inputs.duration }}" -ForegroundColor Magenta
+      - name: Cau hinh he thong
+        shell: powershell
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 0 -Force
+          netsh advfirewall firewall add rule name="RDP-Premium" dir=in action=allow protocol=TCP localport=3389
+          netsh advfirewall firewall add rule name="RDP-Premium-Out" dir=out action=allow protocol=TCP localport=3389
+          Set-Service -Name TermService -StartupType Automatic
+          Start-Service TermService
+          Write-Host "Cau hinh RDP hoan tat" -ForegroundColor Green
+      - name: Tao tai khoan Premium (Giu quyen Admin)
+        shell: powershell
+        run: |
+          Write-Host "Dang tao tai khoan ducthanggaming" -ForegroundColor Yellow
+         
+          $matKhau = "DucThang123"
+          net user ducthanggaming /delete | Out-Null
+          net user ducthanggaming "$matKhau" /add /active:yes /expires:never /passwordchg:no | Out-Null
+          net localgroup Administrators ducthanggaming /add | Out-Null
+          net localgroup "Remote Desktop Users" ducthanggaming /add | Out-Null
+          Write-Host "Tai khoan ducthanggaming tao thanh cong (Administrator + RDP)" -ForegroundColor Green
+          echo "RDP_USER=ducthanggaming" >> $env:GITHUB_ENV
+          echo "RDP_PASS=$matKhau" >> $env:GITHUB_ENV
+      - name: Tao Auth Key tu Tailscale API (Tu dong tao key moi lan)
+        env:
+          TAILSCALE_API_KEY: ${{ secrets.TAILSCALE_API_KEY }}
+        shell: powershell
+        run: |
+          if (-not $env:TAILSCALE_API_KEY) {
+              Write-Host "Khong co TAILSCALE_API_KEY - fallback IP" -ForegroundColor Cyan
+              echo "TAILSCALE_IP=100.100.100.100" >> $env:GITHUB_ENV
+              echo "TAILSCALE_ADMIN_LINK=https://login.tailscale.com/admin/machines" >> $env:GITHUB_ENV
+              echo "TAILSCALE_LOGIN_LINK=https://tailscale.com/login" >> $env:GITHUB_ENV
+              return
+          }
+          Write-Host "Dang tao reusable ephemeral Auth Key bang Tailscale API..." -ForegroundColor Yellow
+          $tailnet = ($env:TAILSCALE_API_KEY -split '\.')[0]
+          $apiUrl = "https://api.tailscale.com/api/v2/tailnet/$tailnet/keys"
+          $body = @{
+              capabilities = @{
+                  devices = @{
+                      create = @{
+                          reusable = $true
+                          ephemeral = $true
+                          preauthorized = $true
+                      }
+                  }
+              }
+              expirySeconds = 7776000
+              description = "GitHub Runner - Run $env:GITHUB_RUN_ID"
+          } | ConvertTo-Json -Depth 10
+          try {
+              $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers @{
+                  Authorization = "Bearer $env:TAILSCALE_API_KEY"
+              } -Body $body -ContentType "application/json"
+              $authKey = $response.key
+              Write-Host "Tao Auth Key thanh cong!" -ForegroundColor Green
+              echo "GENERATED_AUTH_KEY=$authKey" >> $env:GITHUB_ENV
+          } catch {
+              Write-Host "Loi tao Auth Key - fallback IP" -ForegroundColor Cyan
+              echo "GENERATED_AUTH_KEY=" >> $env:GITHUB_ENV
+          }
+      - name: Cai dat & Ket noi Tailscale (Manual + API Key)
+        shell: powershell
+        run: |
+          Write-Host "Dang tai va cai dat Tailscale..." -ForegroundColor Yellow
+          $msiUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
+          $msiPath = "$env:TEMP\tailscale.msi"
+          try {
+              Invoke-WebRequest -Uri $msiUrl -OutFile $msiPath -UseBasicParsing -TimeoutSec 120
+              Start-Process msiexec.exe -ArgumentList "/i", "`"$msiPath`"", "/quiet", "/norestart" -Wait
+              Remove-Item $msiPath -Force
+              Write-Host "Cai dat Tailscale thanh cong" -ForegroundColor Green
+          } catch {
+              Write-Host "Loi tai/cai Tailscale - fallback IP" -ForegroundColor Cyan
+              $ip = "100.100.100.100"
+              echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+              echo "TAILSCALE_ADMIN_LINK=https://login.tailscale.com/admin/machines" >> $env:GITHUB_ENV
+              echo "TAILSCALE_LOGIN_LINK=https://tailscale.com/login" >> $env:GITHUB_ENV
+              return
+          }
+          Start-Sleep -Seconds 20
+          $tailscaleExe = "$env:ProgramFiles\Tailscale\tailscale.exe"
+          if (-not (Test-Path $tailscaleExe)) {
+              Write-Host "Khong tim thay tailscale.exe - fallback IP" -ForegroundColor Cyan
+              $ip = "100.100.100.100"
+          } else {
+              if ($env:GENERATED_AUTH_KEY) {
+                  & $tailscaleExe up --authkey=$env:GENERATED_AUTH_KEY --accept-dns=$true --accept-routes=$true --shields-up=$false --force-reauth
+                  Write-Host "Ket noi bang Auth Key tu API (tu dong approve)" -ForegroundColor Green
+              } else {
+                  & $tailscaleExe up --accept-dns=$true --accept-routes=$true --shields-up=$false
+                  Write-Host "Ket noi khong key - can dang nhap thu cong" -ForegroundColor Cyan
+              }
+              Start-Sleep -Seconds 20
+              $ip = $null
+              for ($i = 0; $i -lt 100; $i++) {
+                  $ipOutput = & $tailscaleExe ip -4 2>$null
+                  if ($ipOutput -and $ipOutput.Trim() -match '^100\.') {
+                      $ip = $ipOutput.Trim()
+                      break
+                  }
+                  Start-Sleep -Seconds 5
+              }
+              if (-not $ip) { $ip = "100.100.100.100" }
+          }
+          Write-Host "Lay IP thanh cong: $ip" -ForegroundColor Green
+          echo "TAILSCALE_IP=$ip" >> $env:GITHUB_ENV
+          echo "TAILSCALE_ADMIN_LINK=https://login.tailscale.com/admin/machines" >> $env:GITHUB_ENV
+          echo "TAILSCALE_LOGIN_LINK=https://tailscale.com/login" >> $env:GITHUB_ENV
+          Write-Host "Cho RDP san sang tren $ip:3389 ..."
+          $success = $false
+          for ($j = 1; $j -le 80; $j++) {
+              $result = Test-NetConnection -ComputerName $ip -Port 3389 -WarningAction SilentlyContinue -ErrorAction SilentlyContinue -InformationLevel Quiet
+              if ($result.TcpTestSucceeded) {
+                  Write-Host "RDP da mo va san sang ket noi!" -ForegroundColor Green
+                  $success = $true
+                  break
+              }
+              Start-Sleep -Seconds 6
+          }
+          if (-not $success) {
+              Write-Host "RDP dang khoi dong - thu ket noi lai sau vai giay" -ForegroundColor Cyan
+          }
+      - name: Thong tin ket noi
+        shell: powershell
+        run: |
+          $matKhau = $env:RDP_PASS
+          $ip = $env:TAILSCALE_IP
+          $adminLink = $env:TAILSCALE_ADMIN_LINK
+          $loginLink = $env:TAILSCALE_LOGIN_LINK
+          \( durationInput = " \){{ github.event.inputs.duration }}"
+          switch ($durationInput) {
+              "30_Phut_(30m)"              { $totalMinutes = 30;  $displayTime = "30 phut" }
+              "1_Gio_(60m)"                { $totalMinutes = 60;  $displayTime = "1 gio" }
+              "1_Gio_30_Phut_(90m)"        { $totalMinutes = 90;  $displayTime = "1 gio 30 phut" }
+              "2_Gio_(120m)"               { $totalMinutes = 120; $displayTime = "2 gio" }
+              "2_Gio_30_Phut_(150m)"       { $totalMinutes = 150; $displayTime = "2 gio 30 phut" }
+              "3_Gio_(180m)"               { $totalMinutes = 180; $displayTime = "3 gio" }
+              "3_Gio_30_Phut_(210m)"       { $totalMinutes = 210; $displayTime = "3 gio 30 phut" }
+              "4_Gio_(240m)"               { $totalMinutes = 240; $displayTime = "4 gio" }
+              "4_Gio_30_Phut_(270m)"       { $totalMinutes = 270; $displayTime = "4 gio 30 phut" }
+              "5_Gio_(300m)"               { $totalMinutes = 300; $displayTime = "5 gio" }
+              "5_Gio_30_Phut_(330m)"       { $totalMinutes = 330; $displayTime = "5 gio 30 phut" }
+              "6_Gio_(360m)"               { $totalMinutes = 360; $displayTime = "6 gio" }
+          }
+          $timeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("SE Asia Standard Time")
+          $start = [System.TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(), $timeZone)
+          $end = $start.AddMinutes($totalMinutes)
+          Write-Host ""
+          Write-Host "┌────────────────────────────────────────────────────┐" -ForegroundColor Cyan
+          Write-Host "│             KET NOI THANH CONG - SAN SANG!         │" -ForegroundColor Cyan
+          Write-Host "├────────────────────────────────────────────────────┤" -ForegroundColor Cyan
+          Write-Host "│ Dia chi Tailscale: $ip" -ForegroundColor White
+          Write-Host "│ Tai khoan: ducthanggaming" -ForegroundColor White
+          Write-Host "│ Mat khau: $matKhau" -ForegroundColor White
+          Write-Host "│ Thoi luong: $displayTime" -ForegroundColor White
+          Write-Host "│ Bat dau: $($start.ToString('HH:mm:ss dd/MM/yyyy'))" -ForegroundColor White
+          Write-Host "│ Ket thuc: $($end.ToString('HH:mm:ss dd/MM/yyyy'))" -ForegroundColor White
+          Write-Host "│ Port: 3389" -ForegroundColor White
+          Write-Host "├────────────────────────────────────────────────────┤" -ForegroundColor Cyan
+          Write-Host "│ Quan ly may (xem/xac nhan may):" -ForegroundColor Cyan
+          Write-Host "│     $adminLink" -ForegroundColor Yellow
+          Write-Host "│ Dang nhap Tailscale (neu can):" -ForegroundColor Cyan
+          Write-Host "│     $loginLink" -ForegroundColor Yellow
+          Write-Host "└────────────────────────────────────────────────────┘" -ForegroundColor Cyan
+          echo "TOTAL_MINUTES=$totalMinutes" >> $env:GITHUB_ENV
+      - name: Duy tri phien lam viec
+        shell: powershell
+        run: |
+          $totalMinutes = [int]$env:TOTAL_MINUTES
+          $timeZone = [System.TimeZoneInfo]::FindSystemTimeZoneById("SE Asia Standard Time")
+          $startTime = [System.TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(), $timeZone)
+          $endTime = $startTime.AddMinutes($totalMinutes)
+          Write-Host "Duy tri phien den $($endTime.ToString('HH:mm:ss dd/MM/yyyy'))"
+          while ($true) {
+              $current = [System.TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(), $timeZone)
+              $left = $endTime - $current
+              if ($left.TotalSeconds -le 0) { break }
+              Write-Host "Con lai: $($left.Hours)h $($left.Minutes)m $($left.Seconds)s" -ForegroundColor Cyan
+              Start-Sleep -Seconds 30
+          }
+      - name: Don dep he thong
+        if: always()
+        shell: powershell
+        run: |
+          net user ducthanggaming /delete | Out-Null
+          $exe = "$env:ProgramFiles\Tailscale\tailscale.exe"
+          if (Test-Path $exe) { & $exe down | Out-Null }
+          netsh advfirewall firewall delete rule name="RDP-Premium" | Out-Null
+          netsh advfirewall firewall delete rule name="RDP-Premium-Out" | Out-Null
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 1 -Force -ErrorAction SilentlyContinue
+          Write-Host "Don dep hoan tat!" -ForegroundColor Green
+          
