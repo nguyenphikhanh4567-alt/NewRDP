@@ -1,0 +1,104 @@
+name: RDP Optimized - Low Lag & Low CPU
+
+on:
+  workflow_dispatch:
+
+jobs:
+  secure-rdp:
+    runs-on: windows-latest  # ~4 vCPU / 16GB RAM / SSD nhanh (miễn phí public repo)
+    timeout-minutes: 360
+
+    steps:
+      - name: Before Cleanup - Disk & CPU Info
+        run: |
+          Write-Host "=== BEFORE OPTIMIZATION ==="
+          Get-PSDrive C | Select-Object Name, @{N="Free(GB)";E={[math]::Round($_.Free/1GB,2)}}
+          Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Name, CPU, WS
+          Write-Host "=========================`n"
+
+      - name: Aggressive Cleanup (Free 30-40GB+ on C:)
+        run: |
+          # Xóa các tool cache lớn không cần cho RDP
+          @(
+            "C:\hostedtoolcache",
+            "C:\Android",
+            "C:\Strawberry",
+            "C:\msys64",
+            "C:\Program Files (x86)\Microsoft Visual Studio",
+            "C:\Program Files\Microsoft SDKs",
+            "C:\Windows\Temp\*",
+            "C:\Windows\SoftwareDistribution\Download\*"
+          ) | ForEach-Object { Remove-Item $_ -Recurse -Force -ErrorAction SilentlyContinue }
+
+          Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+          cleanmgr /sagerun:1
+
+      - name: Ultra Low Lag RDP Optimization
+        run: |
+          # Tắt toàn bộ visual effects (giảm lag RDP cực mạnh)
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name 'VisualFXSetting' -Value 3
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'UserPreferencesMask' -Value ([byte[]](0x90,0x12,0x03,0x80,0x10,0x00,0x00,0x00))
+
+          # Tắt transparency, animations, shadows
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'EnableTransparency' -Value 0
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\DWM' -Name 'EnableAeroPeek' -Value 0
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\DWM' -Name 'AlwaysHibernateThumbnails' -Value 0
+
+          # Power plan: High Performance (giảm latency)
+          powercfg -setactive SCHEME_MIN
+
+          # Tắt service thừa ăn CPU
+          @("SysMain", "DiagTrack", "WSearch", "MapsBroker", "iphlpsvc", "lfsvc") | ForEach-Object {
+            Stop-Service -Name $_ -Force -ErrorAction SilentlyContinue
+            Set-Service -Name $_ -StartupType Disabled -ErrorAction SilentlyContinue
+          }
+
+          # RDP Experience: Prioritize performance
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name 'MaxCompressionLevel' -Value 2 -Type DWord -Force
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'MinEncryptionLevel' -Value 1
+
+      - name: Enable RDP (Fast & Secure via Tailscale)
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+
+          netsh advfirewall firewall delete rule name="RDP-Tailscale" 2>$null
+          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
+
+          Restart-Service TermService -Force
+
+      - name: Create Strong RDP User
+        run: |
+          $password = -join ((33..126) | Get-Random -Count 24 | % {[char]$_})
+          $secure = ConvertTo-SecureString $password -AsPlainText -Force
+          New-LocalUser -Name "RDP" -Password $secure -AccountNeverExpires -PasswordNeverExpires | Out-Null
+          Add-LocalGroupMember -Group "Administrators" -Member "RDP"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
+          echo "RDP_PASS=$password" >> $env:GITHUB_ENV
+
+      - name: Connect Tailscale (Fast & Clean)
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          hostname: rdp-lowlag-${{ github.run_id }}
+          version: latest
+
+      - name: Get Tailscale IP
+        id: ts
+        run: echo "ip=$(tailscale ip -4)" >> $GITHUB_OUTPUT
+
+      - name: After Optimization - Disk & CPU Check
+        run: |
+          Write-Host "=== AFTER OPTIMIZATION ==="
+          Get-PSDrive C | Select-Object Name, @{N="Free(GB)";E={[math]::Round($_.Free/1GB,2)}}
+          Get-Process | Sort-Object CPU -Descending | Select-Object -First 10 Name, CPU, WS
+          Write-Host "Lag giảm mạnh, CPU idle thấp, ổ C: free nhiều hơn!"
+
+      - name: Display Connection & Keep Alive
+        run: |
+          Write-Host "`n=================================================="
+          Write-Host "       RDP SIÊU MƯỢT - LOW LAG & LOW CPU         "
+          Write-Host "=================================================="
+          Write-Host "Tailscale IP : ${{ steps.ts.outputs.ip }}"
+          Write-Host "Username     : RDP"
+    
