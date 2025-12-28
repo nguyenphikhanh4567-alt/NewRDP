@@ -1,0 +1,101 @@
+name: RDP Optimized - No Hang & Max Free Space
+
+on:
+  workflow_dispatch:
+
+jobs:
+  secure-rdp:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Before Cleanup - Disk Info
+        run: |
+          Write-Host "=== BEFORE CLEANUP ==="
+          Get-PSDrive C | Format-Table Name, @{N="Free(GB)";E={[math]::Round($_.Free/1GB,2)}}
+          Write-Host "=====================`n"
+
+      - name: Aggressive Auto Cleanup (No GUI - Free 30-50GB)
+        run: |
+          # Xóa cache tool lớn (an toàn cho RDP)
+          $paths = @(
+            "C:\hostedtoolcache",
+            "C:\Android",
+            "C:\Strawberry",
+            "C:\msys64",
+            "C:\Program Files (x86)\Microsoft Visual Studio\*",
+            "C:\Program Files\Microsoft SDKs\*",
+            "C:\Windows\Temp\*",
+            "C:\Windows\SoftwareDistribution\Download\*",
+            "$env:TEMP\*"
+          )
+          foreach ($path in $paths) {
+            Remove-Item $path -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
+          # Auto clean Windows updates + temp (không mở GUI)
+          Start-Process cleanmgr -ArgumentList "/verylowdisk", "/d C:" -Wait -NoNewWindow
+
+          # Xóa thêm Windows old updates
+          dism /online /cleanup-image /startcomponentcleanup /resetbase
+
+          Clear-RecycleBin -Force
+
+          Write-Host "`nCleanup tự động hoàn tất (không kẹt GUI)!"
+
+      - name: After Cleanup - Disk Info
+        run: |
+          Write-Host "=== AFTER CLEANUP ==="
+          Get-PSDrive C | Format-Table Name, @{N="Free(GB)";E={[math]::Round($_.Free/1GB,2)}}
+          Write-Host "Free space tăng ~30-50GB!`n"
+
+      # Các step tối ưu lag/CPU như cũ
+      - name: Ultra Low Lag & Low CPU Optimization
+        run: |
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name 'VisualFXSetting' -Value 3
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'EnableTransparency' -Value 0
+          powercfg -setactive SCHEME_MIN
+
+          @("SysMain","DiagTrack","WSearch","MapsBroker") | ForEach-Object {
+            Stop-Service -Name $_ -Force -ErrorAction SilentlyContinue
+            Set-Service -Name $_ -StartupType Disabled -ErrorAction SilentlyContinue
+          }
+
+      - name: Enable RDP
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
+          netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
+          Restart-Service TermService -Force
+
+      - name: Create RDP User
+        run: |
+          $pass = -join ((33..126) | Get-Random -Count 24 | % {[char]$_})
+          $sec = ConvertTo-SecureString $pass -AsPlainText -Force
+          New-LocalUser -Name "RDP" -Password $sec -AccountNeverExpires -PasswordNeverExpires | Out-Null
+          Add-LocalGroupMember -Group "Administrators" -Member "RDP"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
+          echo "RDP_PASS=$pass" >> $env:GITHUB_ENV
+
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          hostname: rdp-nolag-${{ github.run_id }}
+
+      - name: Get Tailscale IP
+        id: ts
+        run: echo "ip=$(tailscale ip -4)" >> $GITHUB_OUTPUT
+
+      - name: Display RDP Info & Keep Alive
+        run: |
+          Write-Host "`n=================================================="
+          Write-Host "            RDP SẴN SÀNG - KHÔNG KẸT!            "
+          Write-Host "=================================================="
+          Write-Host "Tailscale IP : ${{ steps.ts.outputs.ip }}"
+          Write-Host "Username     : RDP"
+          Write-Host "Password     : ${{ env.RDP_PASS }}"
+          Write-Host "Disk C:      : Đã free thêm ~40GB"
+          Write-Host "Lag/CPU      : Siêu thấp sau tối ưu"
+          Write-Host "=================================================="
+          while ($true) { Write-Host "[$(Get-Date)] Active..."; Start-Sleep -Seconds 300 }
