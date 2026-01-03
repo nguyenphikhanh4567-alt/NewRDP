@@ -1,42 +1,118 @@
-name: RdpByNTechDz-Admin
+name: MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN
+
 on:
   workflow_dispatch:
     inputs:
-      ngrok_download_url:
-        description: 'Past the ngrok Windows (amd64) ZIP direct download link here'
+      run_hours:
+        description: 'Chọn thời gian máy chủ chạy (1-6 giờ)'
         required: true
-        default: 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip'
- 
+        type: choice
+        options: ['1', '2', '3', '4', '5', '6']
+        default: '1'
+
 jobs:
-  build:
+  premium-rdp-server:
+    name: 🚀 Máy Chủ Premium HEROGOODBOYVN - Windows 11 Style RDP
     runs-on: windows-latest
+    timeout-minutes: ${{ (inputs.run_hours || 1) * 60 }}
+
+    env:
+      ORIGINAL_OWNER: HEROGOODBOYVN
+      RDP_USERNAME: HEROGOODBOYVN  # Username chính chủ!
+
     steps:
-      - name: Download and Extract ngrok
+      - name: Khởi Động Máy Chủ Premium
         run: |
-          Invoke-WebRequest -Uri "${{ github.event.inputs.ngrok_download_url }}" -OutFile ngrok.zip
-          Expand-Archive ngrok.zip
- 
-      - name: Authenticate ngrok
-        env:
-          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-        run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
- 
-      - name: Configure RDP and Create Admin User
+          echo "══════════════════════════════════════════"
+          echo "   MÁY CHỦ PREMIUM CHÍNH CHỦ: $env:ORIGINAL_OWNER   "
+          echo "   Thời gian chạy: ${{ inputs.run_hours || 1 }} giờ   "
+          echo "══════════════════════════════════════════"
+
+      - name: Tải và cài Ngrok (tunnel RDP)
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
+          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
+          Expand-Archive ngrok.zip -DestinationPath .
+          .\ngrok\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+
+      - name: Bật Remote Desktop & Tối Ưu Hiệu Suất
+        run: |
+          # Bật RDP
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          New-LocalUser "NTechDz" -Password (ConvertTo-SecureString -AsPlainText "W1nd0ws-P4ssw0rd-2025!" -Force) -FullName "NTechDz User"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "NTechDz"
-          Add-LocalGroupMember -Group "Administrators" -Member "NTechDz"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
- 
-      - name: Start RDP Tunnel
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+
+          # Tạo/Tùy chỉnh user chính chủ HEROGOODBOYVN
+          $username = "$env:RDP_USERNAME"
+          \( password = " \){{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
+
+          # Nếu user chưa tồn tại thì tạo mới, nếu có rồi thì đổi password
+          if (-Not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
+            New-LocalUser -Name $username -Password (ConvertTo-SecureString $password -AsPlainText -Force) -FullName "HEROGOODBOYVN Premium" -Description "Chủ máy chủ premium"
+            Add-LocalGroupMember -Group "Administrators" -Member $username
+            Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
+            echo "Đã tạo user premium: $username"
+          } else {
+            net user $username $password
+            echo "Đã cập nhật password cho user $username"
+          }
+
+          # Tối ưu hiệu suất
+          powercfg -setactive SCHEME_MIN
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name "EnableTransparency" -Value 0
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
+          Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
+          echo "Đã tối ưu hiệu suất - máy chạy siêu mượt!"
+
+      - name: Khởi chạy Ngrok & Hiển Thị Thông Tin Kết Nối
         run: |
-          Write-Host "======================================================================"
-          Write-Host "            RDP Connection Details - NTechDz Channel"
-          Write-Host "======================================================================"
-          Write-Host "Username:    NTechDz (Administrator)"
-          Write-Host "Password:    W1nd0ws-P4ssw0rd-2025!"
-          Write-Host "Please find the RDP Address in the ngrok logs below."
-          Write-Host "======================================================================"
-          .\ngrok\ngrok.exe tcp 3389 --log=stdout
+          Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp 3389 --log=stdout" -NoNewWindow
+          echo "Đang tạo kết nối an toàn... Chờ chút nha boss! 🚀"
+          Start-Sleep -Seconds 20
+
+          $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels
+          $public_url = ($tunnel.tunnels | Where-Object { $_.proto -eq "tcp" }).public_url
+          $host_port = $public_url -replace 'tcp://', ''
+          $rdp_user = "$env:RDP_USERNAME"
+          \( rdp_pass = " \){{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
+          \( running_time = " \){{ inputs.run_hours || 1 }}"
+
+          Write-Host ""
+          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
+          Write-Host "   🔥 MÁY CHỦ PREMIUM CHÍNH CHỦ: HEROGOODBOYVN 🔥   " -ForegroundColor Magenta
+          Write-Host "   🎮 Server tự xây dựng & tối ưu hoàn toàn! 🎮   " -ForegroundColor Yellow
+          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
+          Write-Host ""
+
+          Write-Host "    👑 CHỦ SỞ HỮU: $env:ORIGINAL_OWNER 👑" -ForegroundColor Yellow
+          Write-Host "         ⏱️  Thời gian hoạt động: $running_time giờ" -ForegroundColor Green
+          Write-Host ""
+
+          Write-Host "          🎮🔥 THÔNG TIN KẾT NỐI 🔥🎮" -ForegroundColor Cyan
+          Write-Host "    ╔═══════════════════════════════════════════════╗" -ForegroundColor White
+          Write-Host "    ║  📍 Address (Host):   $host_port          ║" -ForegroundColor Yellow
+          Write-Host "    ║  👤 Username:         $rdp_user                ║" -ForegroundColor Yellow
+          Write-Host "    ║  🔑 Password:         $rdp_pass                ║" -ForegroundColor Yellow
+          Write-Host "    ╚═══════════════════════════════════════════════╝" -ForegroundColor White
+          Write-Host ""
+
+          Write-Host "📱 Hướng dẫn kết nối:" -ForegroundColor Cyan
+          Write-Host "   • Mở Microsoft Remote Desktop"
+          Write-Host "   • Add PC → Dán Address vào"
+          Write-Host "   • Username: HEROGOODBOYVN"
+          Write-Host "   • Password: Nguyen2009 (mặc định)"
+          Write-Host "   • Connect → Vào máy chủ premium chính chủ ngay!"
+          Write-Host ""
+
+          Write-Host "💎 Máy đã được tối ưu riêng bởi HEROGOODBOYVN - siêu nhẹ, siêu mượt!" -ForegroundColor Magenta
+          Write-Host "⏰ Tự động tắt sau $running_time giờ để tiết kiệm tài nguyên."
+          Write-Host ""
+          Write-Host "        🎉 CHÚC MỌI NGƯỜI CHƠI VUI, NGHE NHẠC CHILL! 🎉" -ForegroundColor Magenta
+          Write-Host "                   Máy Chủ Premium by HEROGOODBOYVN ✨"
+          Write-Host ""
+
+      - name: Giữ máy chủ hoạt động đến hết thời gian
+        run: |
+          \( hours = " \){{ inputs.run_hours || 1 }}"
+          echo "Máy chủ premium của HEROGOODBOYVN đang chạy ổn định $hours giờ..."
+          echo "Vào RDP với username HEROGOODBOYVN để chill nha boss! 🚀🎶"
+          Start-Sleep -Seconds ${{ (inputs.run_hours || 1) * 3600 }}
