@@ -3,113 +3,83 @@ name: MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN
 on:
   workflow_dispatch:
     inputs:
-      run_minutes:
-        description: 'Chọn thời gian chạy (tính theo phút)'
+      ngrok_download_url:
+        description: 'Ngrok download link'
         required: true
-        type: choice
-        options: ['60', '120', '180', '240', '300', '360']  # 1h đến 6h
-        default: '60'  # Mặc định 1 giờ
+        default: 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip'
 
 jobs:
-  premium-rdp:
+  build:
     runs-on: windows-latest
-    timeout-minutes: ${{ inputs.run_minutes + 20 }}  # +20 phút dư cho setup an toàn
-
+    timeout-minutes: 370  # 6 giờ + dư chút
     steps:
-      - name: 🚀 Khởi Động Máy Chủ Premium 🚀
+      - name: Download ngrok
         run: |
-          \( hours = [math]::Round( \){inputs.run_minutes} / 60, 1)
-          Write-Host "╔════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-          Write-Host "║   🌟🔥 MÁY CHỦ PREMIUM CHÍNH CHỦ HEROGOODBOYVN 🔥🌟   ║" -ForegroundColor Magenta
-          Write-Host "║   ⏱️  Thời gian chạy: $hours giờ                        ║" -ForegroundColor Green
-          Write-Host "╚════════════════════════════════════════════════════╝" -ForegroundColor Cyan
-
-      - name: Tải Ngrok
-        run: |
-          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
+          Invoke-WebRequest -Uri "${{ github.event.inputs.ngrok_download_url }}" -OutFile ngrok.zip
           Expand-Archive ngrok.zip -DestinationPath .
-          .\ngrok\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
 
-      - name: Bật RDP, Tạo User & Tối Ưu Hoàn Toàn
+      - name: Auth ngrok
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        run: .\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
+
+      - name: Setup RDP + Max Fast Intro + Reduce Lag
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-          $user = "HEROGOODBOYVN"
-          \( pass = " \){{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
-
-          if (-Not (Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
-            New-LocalUser -Name $user -Password (ConvertTo-SecureString $pass -AsPlainText -Force) -FullName "HEROGOODBOYVN Premium"
-            Add-LocalGroupMember -Group "Administrators" -Member $user
-            Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
-            Write-Host "🎉 Tạo user HEROGOODBOYVN thành công!" -ForegroundColor Green
-          } else {
-            $securePass = ConvertTo-SecureString $pass -AsPlainText -Force
-            Set-LocalUser -Name $user -Password $securePass
-            Write-Host "🎉 Cập nhật password HEROGOODBOYVN ok!" -ForegroundColor Green
-          }
-
-          powercfg -setactive SCHEME_MIN
-          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name "EnableTransparency" -Value 0
+          New-LocalUser "HEROGOODBOYVN" -Password (ConvertTo-SecureString -AsPlainText "${{ secrets.RDP_PASSWORD || 'Nguyen2009' }}" -Force) -FullName "HEROGOODBOYVN"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "HEROGOODBOYVN"
+          Add-LocalGroupMember -Group "Administrators" -Member "HEROGOODBOYVN"
+          
+          # Intro flash nhanh + tắt hiệu ứng
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name "VisualFXSetting" -Value 2
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name "MinAnimate" -Value "0"
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
-          Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
-          Stop-Service -Name "DiagTrack" -Force -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name "EnableTransparency" -Value 0
+          Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name "DragFullWindows" -Value "0"
+          New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\ActiveDesktop' -Force | Out-Null
+          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\ActiveDesktop' -Name "NoChangingWallPaper" -Value 1
+          
+          # Tắt services nặng
+          @("SysMain","WSearch","wuauserv","WinDefend","DiagTrack") | ForEach-Object {
+            Stop-Service -Name $_ -Force -ErrorAction SilentlyContinue
+            Set-Service -Name $_ -StartupType Disabled -ErrorAction SilentlyContinue
+          }
+          
+          # Giảm lag RDP tối đa
+          New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Force | Out-Null
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "MaxCompressionLevel" -Value 2 -Type DWord
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "VideoQualityMode" -Value 2 -Type DWord
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "fEnableDesktopComposition" -Value 0
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations' -Name "DWMFRAMEINTERVAL" -Value 10 -Type DWord
 
-          Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -Path "C:\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
-          Clear-RecycleBin -Force -ErrorAction SilentlyContinue
-
-          Write-Host "🎉 Tối ưu + dọn rác hoàn tất - Máy sạch sẽ, mượt mà!" -ForegroundColor Green
-
-      - name: 🎉 Tạo Tunnel & Thông Tin Kết Nối Premium 🎉
+      - name: Start Ngrok Tunnel (Hidden) & Display RDP Info
         run: |
-          Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp 3389 --log=stdout" -NoNewWindow
-          Start-Sleep -Seconds 60
-
-          $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels
-          $host_port = ($tunnel.tunnels | Where-Object { $_.proto -eq "tcp" }).public_url -replace 'tcp://',''
-
-          \( hours = [math]::Round( \){inputs.run_minutes} / 60, 1)
-
+          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
+          Write-Host "   🚀🔥 RDP PREMIUM HEROGOODBOYVN ĐÃ SẴN SÀNG! 🔥🚀   " -ForegroundColor Magenta
+          Write-Host "   👑 Intro The Flash + Lag giảm max level! 👑       " -ForegroundColor Yellow
+          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
+          Write-Host ""
+          Write-Host "   Username: HEROGOODBOYVN"
+          Write-Host "   Password: Nguyen2009"
+          Write-Host ""
+          Write-Host "   Đang khởi động tunnel ngrok siêu tốc... (ẩn cửa sổ)"
+          
+          Start-Process -WindowStyle Hidden -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389 --log=stdout"
+          
+          Start-Sleep -Seconds 15
+          
+          $tunnels = Invoke-RestMethod http://localhost:4040/api/tunnels
+          $tcpTunnel = ($tunnels.tunnels | Where-Object { $_.proto -eq "tcp" }).public_url
+          $hostPort = $tcpTunnel -replace "tcp://", ""
+          
           Write-Host ""
           Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
-          Write-Host "   🚀🔥 MÁY CHỦ PREMIUM HEROGOODBOYVN ĐÃ SẴN SÀNG! 🔥🚀   " -ForegroundColor Magenta
-          Write-Host "   👑 Chủ chính: HEROGOODBOYVN - Máy tối ưu hoàn toàn! 👑   " -ForegroundColor Yellow
+          Write-Host "   🎮 ĐỊA CHỈ KẾT NỐI RDP (copy nguyên dòng dưới): 🎮   " -ForegroundColor Magenta
+          Write-Host "   $hostPort"
+          Write-Host "   Host: $($hostPort.split(':')[0]) | Port: $($hostPort.split(':')[1])"
           Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
           Write-Host ""
-
-          Write-Host "    🎮🔥 THÔNG TIN KẾT NỐI PREMIUM 🔥🎮" -ForegroundColor Cyan
-          Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor White
-          Write-Host "║  📍 Address (Host + Port): $host_port          ║" -ForegroundColor Yellow
-          Write-Host "║  👤 Username:             HEROGOODBOYVN             ║" -ForegroundColor Yellow
-          Write-Host "║  🔑 Password:             Nguyen2009                ║" -ForegroundColor Yellow
-          Write-Host "╚══════════════════════════════════════════════════╝" -ForegroundColor White
-          Write-Host ""
-
-          Write-Host "📱 HƯỚNG DẪN KẾT NỐI CHI TIẾT (ĐIỆN THOẠI HOẶC PC):" -ForegroundColor Cyan
-          Write-Host "   • TẢI APP:"
-          Write-Host "      - Android: 'Windows App' trên Google Play"
-          Write-Host "      - iPhone: 'Windows App Mobile' trên App Store"
-          Write-Host "      - PC: Dùng 'Remote Desktop Connection' (gõ mstsc)"
-          Write-Host ""
-          Write-Host "   • KẾT NỐI:"
-          Write-Host "      1. Mở app → Nhấn + (Add PC)"
-          Write-Host "      2. Dán Address đầy đủ (có port)"
-          Write-Host "      3. Username: HEROGOODBOYVN"
-          Write-Host "      4. Password: Nguyen2009"
-          Write-Host "      5. Connect → Nếu cảnh báo chứng chỉ → Nhấn Continue"
-          Write-Host "      6. Vào Windows chơi vui vẻ ngay! 🎉"
-          Write-Host ""
-
-          Write-Host "💎 Máy đã được tối ưu hoàn toàn - YouTube, nghe nhạc, lướt web mượt mà!" -ForegroundColor Magenta
-          Write-Host ""
-          Write-Host "        🎉 CHÚC MỌI NGƯỜI CHƠI WINDOWS VUI VẺ! 🎉" -ForegroundColor Magenta
-          Write-Host "                   Powered by HEROGOODBOYVN Premium ✨🚀"
-          Write-Host ""
-
-      - name: Giữ máy chủ chạy & Tự Shutdown
-        run: |
-          \( hours = [math]::Round( \){inputs.run_minutes} / 60, 1)
-          Write-Host "🛡️ Máy chủ premium đang chạy ổn định $hours giờ... Chơi Windows vui vẻ nha mọi người! 🛡️" -ForegroundColor Green
-          Start-Sleep -Seconds ${inputs.run_minutes * 60}
-          Write-Host "⏰ Hết thời gian - Máy chủ tự shutdown! Hẹn gặp lại! 👋" -ForegroundColor Red
+          Write-Host "   Tunnel chạy ổn định - Job tự dừng sau 6 giờ."
+          Write-Host "   Chúc mọi người chơi Windows vui vẻ! 🎉🚀"
+          Start-Sleep -Seconds 21420
