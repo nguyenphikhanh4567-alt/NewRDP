@@ -13,12 +13,12 @@ on:
 jobs:
   MÁY-CHỦ-PREMIUM-CỦA-HEROGOODBOYVN:
     runs-on: windows-latest
-    timeout-minutes: 390  # Max 6 giờ + dư
+    timeout-minutes: 390
 
     steps:
-      - name: Tải Ngrok
+      - name: Tải Ngrok (Phiên bản mới nhất - Fix lỗi tải)
         run: |
-          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
+          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip -UseBasicParsing
           Expand-Archive ngrok.zip -DestinationPath .
           .\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
 
