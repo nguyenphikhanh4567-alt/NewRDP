@@ -1,4 +1,4 @@
-name: MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN
+name: 🚀 MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN 🚀
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
         default: '3'
 
 jobs:
-  premium-rdp:
+  rdp:
     runs-on: windows-latest
     timeout-minutes: 390
 
@@ -22,70 +22,45 @@ jobs:
           Expand-Archive ngrok.zip -DestinationPath .
           .\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
 
-      - name: Bật RDP + Tạo User + Tối Ưu Mượt Max
+      - name: Bật RDP + User + Tối Ưu
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-          $user = "HEROGOODBOYVN"
-          \( pass = " \){{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
-
-          if (-Not (Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
-            New-LocalUser -Name $user -Password (ConvertTo-SecureString $pass -AsPlainText -Force) -FullName "HEROGOODBOYVN Premium"
-            Add-LocalGroupMember -Group "Administrators" -Member $user
-            Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
-          } else {
-            Set-LocalUser -Name $user -Password (ConvertTo-SecureString $pass -AsPlainText -Force)
-          }
+          net user HEROGOODBOYVN ${{ secrets.RDP_PASSWORD || 'Nguyen2009' }} /add
+          net localgroup administrators HEROGOODBOYVN /add
+          net localgroup "Remote Desktop Users" HEROGOODBOYVN /add
 
           powercfg -setactive SCHEME_MIN
-          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name "EnableTransparency" -Value 0
-          Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
-          Stop-Service SysMain, DiagTrack -Force -ErrorAction SilentlyContinue
 
-      - name: Khởi Động Tunnel & Lấy Address Từ Log (Fix Connection Refused)
+      - name: Tunnel & Kết Nối
         run: |
-          # Chạy ngrok và capture log
-          Start-Process -RedirectStandardOutput ngrok.log -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389"
+          Start-Process -WindowStyle Hidden -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389"
 
-          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌"
-          Write-Host "      🔥 MÁY CHỦ PREMIUM HEROGOODBOYVN ONLINE! 🔥      "
-          Write-Host "   👑 Thời gian chạy: ${{ inputs.run_hours }} giờ siêu mượt! 👑   "
-          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌"
-          Write-Host ""
-
-          Write-Host "   Đang chờ tunnel ngrok... (lấy address từ log, không dùng API 4040)"
+          Start-Sleep -Seconds 60
 
           $addr = ""
-          $attempts = 0
-          while ($attempts -lt 30) {
-            Start-Sleep -Seconds 10
-            $log = Get-Content ngrok.log -Tail 20 -ErrorAction SilentlyContinue
-            $line = $log | Select-String "started tunnel" | Select-Object -Last 1
-            if ($line) {
-              $addr = $line.Line -replace ".*addr=","" -replace 'tcp://',""
-              break
-            }
-            $attempts++
+          for ($i = 1; $i -le 10; $i++) {
+            try {
+              $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels -ErrorAction Stop
+              $addr = ($tunnel.tunnels | Where-Object proto -eq "tcp").public_url -replace "tcp://",""
+              if ($addr) { break }
+            } catch {}
+            Start-Sleep -Seconds 30
           }
 
-          if (-not $addr) {
-            Write-Host "LỖI: Không lấy được address - Check token ngrok mới nhất từ dashboard.ngrok.com!"
-            exit 1
-          }
+          if (-not $addr) { Write-Host "Lỗi lấy address - Check token ngrok mới!" ; exit 1 }
 
+          Write-Host "🚀 MÁY CHỦ PREMIUM SẴN SÀNG 🚀"
+          Write-Host "Thời gian chạy: ${{ inputs.run_hours }} giờ"
           Write-Host ""
-          Write-Host "   🎮 THÔNG TIN KẾT NỐI PREMIUM (copy nguyên dòng dưới): 🎮"
-          Write-Host "   $addr"
+          Write-Host "KẾT NỐI RDP:"
+          Write-Host "$addr"
           Write-Host ""
-          Write-Host "   Username: HEROGOODBOYVN"
-          Write-Host "   Password: Nguyen2009"
+          Write-Host "Username: HEROGOODBOYVN"
+          Write-Host "Password: Nguyen2009"
           Write-Host ""
-          Write-Host "   Dùng Microsoft Remote Desktop / Windows App trên điện thoại hoặc PC"
-          Write-Host "   Nếu cảnh báo chứng chỉ → Nhấn Continue là vào ngay!"
-          Write-Host ""
-          Write-Host "        🎉 CHÚC MỌI NGƯỜI CHƠI WINDOWS VUI VẺ! 🎉"
-          Write-Host "                   Powered by HEROGOODBOYVN Premium ✨🚀"
-          Write-Host ""
+          Write-Host "Dùng Remote Desktop (PC/điện thoại) để kết nối"
+          Write-Host "Chúc mọi người chơi Windows vui vẻ! 🎉"
 
           Start-Sleep -Seconds ${{ inputs.run_hours * 3600 }}
