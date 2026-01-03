@@ -1,0 +1,62 @@
+name: MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_hours:
+        description: 'Chọn thời gian chạy (1-6 giờ)'
+        required: true
+        type: choice
+        options: ['1', '2', '3', '4', '5', '6']
+        default: '1'
+
+jobs:
+  premium-rdp:
+    runs-on: windows-latest
+    timeout-minutes: ${{ (inputs.run_hours || 1) * 60 }}
+
+    steps:
+      - name: Khởi Động Máy Chủ Premium
+        run: |
+          echo "╔═══════════════════════════════════════════╗"
+          echo "║   🔥 MÁY CHỦ PREMIUM HEROGOODBOYVN 🔥     ║"
+          echo "║   ⏱️ Thời gian: ${{ inputs.run_hours || 1 }} giờ          ║"
+          echo "╚═══════════════════════════════════════════╝"
+
+      - name: Tải Ngrok
+        run: |
+          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
+          Expand-Archive ngrok.zip -DestinationPath .
+          .\ngrok\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+
+      - name: Bật RDP & Tạo User + Tối Ưu
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+          net user HEROGOODBOYVN ${{ secrets.RDP_PASSWORD || 'Nguyen2009' }} /add
+          net localgroup administrators HEROGOODBOYVN /add
+          net localgroup "Remote Desktop Users" HEROGOODBOYVN /add
+
+          powercfg -setactive SCHEME_MIN
+          Remove-Item -Path "$env:TEMP\*" -Recurse -Force -ErrorAction SilentlyContinue
+          echo "User + Tối ưu + Dọn rác xong - Máy mượt max!"
+
+      - name: Tạo Tunnel & Thông Tin Kết Nối
+        run: |
+          Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp 3389 --log=stdout" -NoNewWindow
+          Start-Sleep -Seconds 60
+
+          $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels
+          $host_port = ($tunnel.tunnels | Where-Object { $_.proto -eq "tcp" }).public_url -replace 'tcp://',''
+
+          echo "╔═══════════════════════════════════════════╗"
+          echo "║   🎉 MÁY CHỦ PREMIUM SẴN SÀNG! 🎉         ║"
+          echo "║   📍 Address: $host_port                  ║"
+          echo "║   👤 Username: HEROGOODBOYVN              ║"
+          echo "║   🔑 Password: Nguyen2009                 ║"
+          echo "╚═══════════════════════════════════════════╝"
+          echo "Connect bằng Microsoft Remote Desktop ngay boss ơi! 🚀"
+
+      - name: Giữ máy chủ chạy
+        run: Start-Sleep -Seconds ${{ (inputs.run_hours || 1) * 3600 }}
