@@ -1,4 +1,4 @@
-name: MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN
+name: 🚀 MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN 🚀
 
 on:
   workflow_dispatch:
@@ -10,8 +10,8 @@ on:
         options: ['1', '2', '3', '4', '5', '6']
         default: '3'
 
-jobs:
-  MÁY-CHỦ-PREMIUM-CỦA-HEROGOODBOYVN:
+- jobs:
+  - MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN:
     runs-on: windows-latest
     timeout-minutes: 390
 
