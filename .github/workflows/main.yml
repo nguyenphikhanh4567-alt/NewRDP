@@ -1,4 +1,5 @@
-name: 🚀 MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN 🚀
+
+name: 🚀 SERVER HRGBVNGM PREMIUM 🚀
 
 on:
   workflow_dispatch:
@@ -10,27 +11,33 @@ on:
         options: ['1', '2', '3', '4', '5', '6']
         default: '3'
 
-- jobs:
-  - MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN:
+jobs:
+  rdp:
     runs-on: windows-latest
     timeout-minutes: 390
 
     steps:
-      - name: Tải Ngrok (Latest stable - Direct exe, fix lỗi tải 2026)
+      - name: Tải và giải nén Ngrok (phiên bản stable mới nhất)
         run: |
-          Invoke-WebRequest https://bin.equinox.io/a/nmkK7tSCK4A/ngrok-v3-stable-windows-amd64.exe -OutFile ngrok.exe
+          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
+          Expand-Archive ngrok.zip -DestinationPath .
           .\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
 
-      - name: Bật RDP + Tạo User + Tối Ưu Hiệu Suất
+      - name: Bật RDP, tạo user và tối ưu hiệu suất
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-          $user = "HEROGOODBOYVN"
-          $pass = "${{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
+          $user = "rdpuser"
+          $pass = "${{ secrets.RDP_PASSWORD }}"
+
+          if (-Not $pass) {
+            Write-Host "LỖI: Vui lòng đặt secret RDP_PASSWORD!"
+            exit 1
+          }
 
           if (-Not (Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
-            New-LocalUser -Name $user -Password (ConvertTo-SecureString $pass -AsPlainText -Force) -FullName "HEROGOODBOYVN Premium"
+            New-LocalUser -Name $user -Password (ConvertTo-SecureString $pass -AsPlainText -Force) -FullName "RDP User"
             Add-LocalGroupMember -Group "Administrators" -Member $user
             Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
           } else {
@@ -42,19 +49,19 @@ on:
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
           Stop-Service SysMain, DiagTrack -Force -ErrorAction SilentlyContinue
 
-      - name: Khởi Động Tunnel & Hiển Thị Thông Tin Kết Nối
+      - name: Khởi động Ngrok tunnel và hiển thị thông tin kết nối
         run: |
           Start-Process -WindowStyle Hidden -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389"
 
-          Write-Host "MÁY CHỦ PREMIUM HEROGOODBOYVN ĐÃ ONLINE THÀNH CÔNG!"
+          Write-Host "RDP đã sẵn sàng!"
           Write-Host "Thời gian chạy: ${{ inputs.run_hours }} giờ"
 
-          Write-Host "Đang chờ ngrok khởi tạo tunnel (tự động retry nếu cần)..."
+          Write-Host "Đang chờ Ngrok khởi tạo tunnel..."
 
           Start-Sleep -Seconds 60
 
           $addr = ""
-          for ($i = 1; $i -le 10; $i++) {
+          for ($i = 1; $i -le 15; $i++) {
             try {
               $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels -ErrorAction Stop
               $addr = ($tunnel.tunnels | Where-Object proto -eq "tcp").public_url -replace "tcp://",""
@@ -63,20 +70,20 @@ on:
                 break 
               }
             } catch {
-              Write-Host "Retry lần $i - ngrok đang khởi động..."
+              Write-Host "Retry lần $i..."
             }
-            Start-Sleep -Seconds 30
+            Start-Sleep -Seconds 20
           }
 
           if (-not $addr) {
-            Write-Host "LỖI: Không lấy được address sau 10 lần thử - Vui lòng kiểm tra NGROK_AUTH_TOKEN!"
+            Write-Host "LỖI: Không lấy được tunnel Ngrok - Kiểm tra NGROK_AUTH_TOKEN!"
             exit 1
           }
 
-          Write-Host "THÔNG TIN KẾT NỐI (copy address bên dưới):"
-          Write-Host "$addr"
-          Write-Host "Username: HEROGOODBOYVN"
-          Write-Host "Password: ${{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
-          Write-Host "Powered by HEROGOODBOYVN Premium"
+          Write-Host "=== THÔNG TIN KẾT NỐI RDP ==="
+          Write-Host "Address: $addr"
+          Write-Host "Username: rdpuser"
+          Write-Host "Password: ${{ secrets.RDP_PASSWORD }}"
+          Write-Host "=============================="
 
           Start-Sleep -Seconds (${{ inputs.run_hours }} * 3600)
