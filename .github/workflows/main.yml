@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ngrok_download_url:
-        description: 'Ngrok download link (default stable 2026)'
+        description: 'Ngrok download link (default stable chính thức)'
         required: true
         default: 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip'
 
@@ -74,7 +74,7 @@ jobs:
           Write-Host "Tên chủ: Nguyễn Chí Dự"
           Write-Host "Username: NguyenChiDu"
           Write-Host "Password: W1nd0ws-P4ssw0rd-2025!"
-          Write-Host "Intro The Flash + Lag giảm max"
+          Write-Host "Intro The Flash siêu nhanh + Lag gần zero"
           Write-Host "=================================================="
 
           Start-Process -WindowStyle Hidden -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389 --log=stdout"
@@ -82,18 +82,17 @@ jobs:
           Start-Sleep -Seconds 45
 
           $addr = ""
-          $i = 1
-          while ($i -le 30 -and -not $addr) {
+          $attempt = 1
+          while ($attempt -le 30) {
             try {
               $tunnels = Invoke-RestMethod http://localhost:4040/api/tunnels -ErrorAction Stop
               $tcpTunnel = $tunnels.tunnels | Where-Object { $_.proto -eq "tcp" }
               if ($tcpTunnel) {
                 $addr = $tcpTunnel.public_url -replace 'tcp://', ''
-                Write-Host "Lấy tunnel thành công sau $i lần thử!"
+                Write-Host "Lấy tunnel thành công sau $attempt lần thử!"
+                break
               }
             } catch {
-              Write-Host "Đang chờ Ngrok tunnel... (lần $i/30)"
+              Write-Host "Đang chờ Ngrok tunnel... (lần $attempt/30)"
             }
-            if (-not $addr) { Start-Sleep -Seconds 15 }
-            $i++
-
+            Start-Sleep -
