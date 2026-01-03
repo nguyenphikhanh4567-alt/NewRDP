@@ -34,7 +34,7 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-          $user = "HEROGOODBOYVN"
+          $user = "admin"  # Username ngắn để tránh lỗi, boss RDP vào đổi lại nếu muốn
           \( pass = " \){{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
           net user $user $pass /add || net user $user $pass
           net localgroup administrators $user /add
@@ -70,7 +70,7 @@ jobs:
           Write-Host "    🎮🔥 THÔNG TIN KẾT NỐI PREMIUM 🔥🎮" -ForegroundColor Cyan
           Write-Host "╔══════════════════════════════════════════════════╗" -ForegroundColor White
           Write-Host "║  📍 Address (Host + Port): $host_port          ║" -ForegroundColor Yellow
-          Write-Host "║  👤 Username:             HEROGOODBOYVN             ║" -ForegroundColor Yellow
+          Write-Host "║  👤 Username:             admin                     ║" -ForegroundColor Yellow
           Write-Host "║  🔑 Password:             Nguyen2009                ║" -ForegroundColor Yellow
           Write-Host "╚══════════════════════════════════════════════════╝" -ForegroundColor White
           Write-Host ""
@@ -85,7 +85,7 @@ jobs:
           Write-Host "      1. Mở app Windows App / Remote Desktop"
           Write-Host "      2. Nhấn dấu + (Add PC)"
           Write-Host "      3. Dán đầy đủ Address (có cả port) vào ô PC name"
-          Write-Host "      4. Username: HEROGOODBOYVN"
+          Write-Host "      4. Username: admin"
           Write-Host "      5. Password: Nguyen2009"
           Write-Host "      6. Nhấn Save → Connect"
           Write-Host "      7. Nếu hiện cảnh báo chứng chỉ → Nhấn Continue/Yes"
