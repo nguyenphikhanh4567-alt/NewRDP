@@ -13,7 +13,7 @@ on:
 jobs:
   premium-rdp:
     runs-on: windows-latest
-    timeout-minutes: 390  # Max 6 giờ + dư
+    timeout-minutes: 390
 
     steps:
       - name: Tải Ngrok
@@ -43,50 +43,42 @@ jobs:
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
           Stop-Service SysMain, DiagTrack -Force -ErrorAction SilentlyContinue
 
-      - name: Khởi Động Tunnel & Thông Tin Kết Nối Đẹp Lung Linh
+      - name: Khởi Động Tunnel & Thông Tin Kết Nối Premium
         run: |
           Start-Process -WindowStyle Hidden -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389"
-
-          Write-Host ""
-          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
-          Write-Host "      🔥 MÁY CHỦ PREMIUM HEROGOODBOYVN ONLINE! 🔥      " -ForegroundColor Magenta
-          Write-Host "   👑 Thời gian chạy: ${{ inputs.run_hours }} giờ siêu mượt! 👑   " -ForegroundColor Yellow
-          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
-          Write-Host ""
-
-          Write-Host "   Đang chờ ngrok khởi động tunnel (chờ lâu + retry để chắc ăn)..."
 
           Start-Sleep -Seconds 60
 
           $addr = ""
-          for ($i = 1; $i -le 5; $i++) {
+          for ($i = 1; $i -le 10; $i++) {
             try {
               $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels -ErrorAction Stop
               $addr = ($tunnel.tunnels | Where-Object proto -eq "tcp").public_url -replace "tcp://",""
               if ($addr) { break }
-            } catch {
-              Write-Host "   Retry lấy address lần $i (ngrok đang khởi động)..."
-            }
+            } catch {}
             Start-Sleep -Seconds 30
           }
 
           if (-not $addr) {
-            Write-Host "LỖI: Không lấy được address - Check token ngrok mới nhất từ dashboard.ngrok.com!"
+            Write-Host "LỖI: Không lấy được address sau 10 lần - Check token ngrok mới nhất!"
             exit 1
           }
 
+          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌"
+          Write-Host "      🔥 MÁY CHỦ PREMIUM HEROGOODBOYVN ONLINE! 🔥      "
+          Write-Host "   👑 Thời gian chạy: ${{ inputs.run_hours }} giờ siêu mượt! 👑   "
+          Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌"
           Write-Host ""
-          Write-Host "   🎮 THÔNG TIN KẾT NỐI PREMIUM (copy nguyên dòng dưới): 🎮"
+          Write-Host "   🎮 KẾT NỐI (copy nguyên dòng dưới dán vào app):"
           Write-Host "   $addr"
           Write-Host ""
           Write-Host "   Username: HEROGOODBOYVN"
           Write-Host "   Password: Nguyen2009"
           Write-Host ""
-          Write-Host "   Dùng Microsoft Remote Desktop / Windows App trên điện thoại hoặc PC"
-          Write-Host "   Nếu cảnh báo chứng chỉ → Nhấn Continue là vào ngay!"
+          Write-Host "   Dùng Microsoft Remote Desktop / Windows App trên điện thoại/PC"
+          Write-Host "   Cảnh báo chứng chỉ → Nhấn Continue là vào!"
           Write-Host ""
-          Write-Host "        🎉 CHÚC MỌI NGƯỜI CHƠI WINDOWS VUI VẺ! 🎉" -ForegroundColor Magenta
+          Write-Host "        🎉 CHÚC MỌI NGƯỜI CHƠI WINDOWS VUI VẺ! 🎉"
           Write-Host "                   Powered by HEROGOODBOYVN Premium ✨🚀"
-          Write-Host ""
 
           Start-Sleep -Seconds ${{ inputs.run_hours * 3600 }}
