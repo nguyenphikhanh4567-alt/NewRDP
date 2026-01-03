@@ -16,10 +16,9 @@ jobs:
     timeout-minutes: 390
 
     steps:
-      - name: Tải Ngrok (Phiên bản mới nhất - Fix lỗi tải)
+      - name: Tải Ngrok (Latest stable - Direct exe, fix lỗi tải 2026)
         run: |
-          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip -UseBasicParsing
-          Expand-Archive ngrok.zip -DestinationPath .
+          Invoke-WebRequest https://bin.equinox.io/a/nmkK7tSCK4A/ngrok-v3-stable-windows-amd64.exe -OutFile ngrok.exe
           .\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
 
       - name: Bật RDP + Tạo User + Tối Ưu Hiệu Suất
