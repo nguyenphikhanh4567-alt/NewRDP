@@ -22,7 +22,7 @@ jobs:
           Expand-Archive ngrok.zip -DestinationPath .
           .\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
 
-      - name: Bật RDP + Tạo User + Tối Ưu Mượt Max
+      - name: Bật RDP + Tạo User + Tối Ưu Hiệu Suất
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
@@ -43,18 +43,14 @@ jobs:
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
           Stop-Service SysMain, DiagTrack -Force -ErrorAction SilentlyContinue
 
-      - name: Khởi Động Tunnel & Thông Tin Kết Nối Đẹp Lung Linh
+      - name: Khởi Động Tunnel & Hiển Thị Thông Tin Kết Nối
         run: |
           Start-Process -WindowStyle Hidden -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389"
 
-          Write-Host ""
-          Write-Host "════════════════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-          Write-Host "          MÁY CHỦ PREMIUM HEROGOODBOYVN ĐÃ ONLINE THÀNH CÔNG!          " -ForegroundColor Magenta
-          Write-Host "          Thời gian chạy: ${{ inputs.run_hours }} giờ siêu mượt & ổn định!          " -ForegroundColor Yellow
-          Write-Host "════════════════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
-          Write-Host ""
+          Write-Host "MÁY CHỦ PREMIUM HEROGOODBOYVN ĐÃ ONLINE THÀNH CÔNG!"
+          Write-Host "Thời gian chạy: ${{ inputs.run_hours }} giờ (siêu mượt & ổn định)"
 
-          Write-Host "   Đang chờ ngrok khởi tạo tunnel (sẽ retry tự động nếu cần)..."
+          Write-Host "Đang chờ ngrok khởi tạo tunnel (tự động retry nếu cần)..."
 
           Start-Sleep -Seconds 60
 
@@ -64,32 +60,27 @@ jobs:
               $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels -ErrorAction Stop
               $addr = ($tunnel.tunnels | Where-Object proto -eq "tcp").public_url -replace "tcp://",""
               if ($addr) { 
-                Write-Host "   Lấy address thành công sau $i lần thử!"
+                Write-Host "Lấy address thành công sau $i lần thử!"
                 break 
               }
             } catch {
-              Write-Host "   Retry lần $i - ngrok đang khởi động..."
+              Write-Host "Retry lần $i - ngrok đang khởi động..."
             }
             Start-Sleep -Seconds 30
           }
 
           if (-not $addr) {
-            Write-Host "LỖI: Không lấy được address sau 10 lần thử - Kiểm tra lại NGROK_AUTH_TOKEN (có thể sai hoặc hết hạn)!"
+            Write-Host "LỖI: Không lấy được address sau 10 lần thử - Vui lòng kiểm tra NGROK_AUTH_TOKEN (có thể sai hoặc hết hạn)!"
             exit 1
           }
 
-          Write-Host ""
-          Write-Host "   THÔNG TIN KẾT NỐI PREMIUM (copy nguyên dòng dưới để kết nối):"
-          Write-Host "   $addr"
-          Write-Host ""
-          Write-Host "   Username: HEROGOODBOYVN"
-          Write-Host "   Password: ${{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
-          Write-Host ""
-          Write-Host "   Hướng dẫn: Dùng Microsoft Remote Desktop (trên PC) hoặc Windows App (trên điện thoại)"
-          Write-Host "   Nếu thấy cảnh báo chứng chỉ → Nhấn Continue để vào ngay!"
-          Write-Host ""
-          Write-Host "          CHÚC MỌI NGƯỜI CHƠI WINDOWS VUI VẺ & MƯỢT MÀ!          " -ForegroundColor Magenta
-          Write-Host "                   Powered by HEROGOODBOYVN Premium               "
-          Write-Host ""
+          Write-Host "THÔNG TIN KẾT NỐI PREMIUM (copy nguyên dòng address bên dưới):"
+          Write-Host "$addr"
+          Write-Host "Username: HEROGOODBOYVN"
+          Write-Host "Password: ${{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
+          Write-Host "Hướng dẫn: Sử dụng Microsoft Remote Desktop (PC) hoặc Windows App (điện thoại)"
+          Write-Host "Nếu có cảnh báo chứng chỉ: Nhấn Continue để kết nối ngay"
+          Write-Host "CHÚC MỌI NGƯỜI SỬ DỤNG WINDOWS VUI VẺ & MƯỢT MÀ!"
+          Write-Host "Powered by HEROGOODBOYVN Premium"
 
           Start-Sleep -Seconds (${{ inputs.run_hours }} * 3600)
