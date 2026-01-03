@@ -13,7 +13,7 @@ on:
 jobs:
   premium-rdp:
     runs-on: windows-latest
-    timeout-minutes: 390  # Max 6 giờ + dư 30 phút setup, an toàn cho mọi lựa chọn
+    timeout-minutes: 390  # Max 6 giờ + dư
 
     steps:
       - name: Tải Ngrok
@@ -40,16 +40,32 @@ jobs:
         run: |
           Start-Process -WindowStyle Hidden -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389"
 
-          Start-Sleep -Seconds 20
-
-          $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels
-          $addr = ($tunnel.tunnels | Where-Object proto -eq "tcp").public_url -replace "tcp://",""
-
-          Write-Host ""
           Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
           Write-Host "      🔥 MÁY CHỦ PREMIUM HEROGOODBOYVN ONLINE! 🔥      " -ForegroundColor Magenta
-          Write-Host "   👑 Thời gian chạy: ${{ inputs.run_hours }} giờ (tắt đúng giờ chọn) 👑   " -ForegroundColor Yellow
+          Write-Host "   👑 Thời gian chạy: ${{ inputs.run_hours }} giờ siêu mượt! 👑   " -ForegroundColor Yellow
           Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
+          Write-Host ""
+
+          Write-Host "   Đang chờ ngrok khởi động tunnel (60 giây + retry để chắc ăn)..."
+
+          Start-Sleep -Seconds 60
+
+          $addr = ""
+          for ($i = 1; $i -le 3; $i++) {
+            try {
+              $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels -ErrorAction Stop
+              $addr = ($tunnel.tunnels | Where-Object proto -eq "tcp").public_url -replace "tcp://",""
+              if ($addr) { break }
+            } catch {}
+            Write-Host "   Retry lấy address lần $i..."
+            Start-Sleep -Seconds 20
+          }
+
+          if (-not $addr) {
+            Write-Host "LỖI: Không lấy được tunnel - Check token ngrok mới nhất!"
+            exit 1
+          }
+
           Write-Host ""
           Write-Host "   🎮 THÔNG TIN KẾT NỐI PREMIUM (copy nguyên dòng dưới): 🎮"
           Write-Host "   $addr"
@@ -64,6 +80,4 @@ jobs:
           Write-Host "                   Powered by HEROGOODBOYVN Premium ✨🚀"
           Write-Host ""
 
-          $sleep_seconds = ${{ inputs.run_hours }} * 3600
-          Write-Host "Máy chủ sẽ chạy đúng ${{ inputs.run_hours }} giờ rồi tự tắt an toàn..."
-          Start-Sleep -Seconds $sleep_seconds
+          Start-Sleep -Seconds ${{ inputs.run_hours * 3600 }}
