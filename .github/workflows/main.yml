@@ -27,9 +27,16 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-          net user HEROGOODBOYVN ${{ secrets.RDP_PASSWORD || 'Nguyen2009' }} /add
-          net localgroup administrators HEROGOODBOYVN /add
-          net localgroup "Remote Desktop Users" HEROGOODBOYVN /add
+          $user = "HEROGOODBOYVN"
+          \( pass = " \){{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
+
+          if (-Not (Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
+            New-LocalUser -Name $user -Password (ConvertTo-SecureString $pass -AsPlainText -Force) -FullName "HEROGOODBOYVN Premium"
+            Add-LocalGroupMember -Group "Administrators" -Member $user
+            Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
+          } else {
+            Set-LocalUser -Name $user -Password (ConvertTo-SecureString $pass -AsPlainText -Force)
+          }
 
           powercfg -setactive SCHEME_MIN
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name "EnableTransparency" -Value 0
@@ -40,29 +47,31 @@ jobs:
         run: |
           Start-Process -WindowStyle Hidden -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389"
 
+          Write-Host ""
           Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
           Write-Host "      🔥 MÁY CHỦ PREMIUM HEROGOODBOYVN ONLINE! 🔥      " -ForegroundColor Magenta
           Write-Host "   👑 Thời gian chạy: ${{ inputs.run_hours }} giờ siêu mượt! 👑   " -ForegroundColor Yellow
           Write-Host "🌌✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨🌌" -ForegroundColor Cyan
           Write-Host ""
 
-          Write-Host "   Đang chờ ngrok khởi động tunnel (60 giây + retry để chắc ăn)..."
+          Write-Host "   Đang chờ ngrok khởi động tunnel (chờ lâu + retry để chắc ăn)..."
 
           Start-Sleep -Seconds 60
 
           $addr = ""
-          for ($i = 1; $i -le 3; $i++) {
+          for ($i = 1; $i -le 5; $i++) {
             try {
               $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels -ErrorAction Stop
               $addr = ($tunnel.tunnels | Where-Object proto -eq "tcp").public_url -replace "tcp://",""
               if ($addr) { break }
-            } catch {}
-            Write-Host "   Retry lấy address lần $i..."
-            Start-Sleep -Seconds 20
+            } catch {
+              Write-Host "   Retry lấy address lần $i (ngrok đang khởi động)..."
+            }
+            Start-Sleep -Seconds 30
           }
 
           if (-not $addr) {
-            Write-Host "LỖI: Không lấy được tunnel - Check token ngrok mới nhất!"
+            Write-Host "LỖI: Không lấy được address - Check token ngrok mới nhất từ dashboard.ngrok.com!"
             exit 1
           }
 
