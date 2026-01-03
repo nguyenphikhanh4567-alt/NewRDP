@@ -1,4 +1,7 @@
-name: MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN
+# Đổi tên file này thành: may-chu-premium-herogoodboyvn.yml
+# Hoặc đẹp hơn: 🚀-may-chu-premium-cua-herogoodboyvn.yml (copy paste emoji thật nha boss)
+
+name: MÁY CHỦ PREMIUM CỦA HEROGOODBOYVN  # Key này dùng cho run name chi tiết
 
 on:
   workflow_dispatch:
@@ -18,7 +21,7 @@ jobs:
 
     env:
       ORIGINAL_OWNER: HEROGOODBOYVN
-      RDP_USERNAME: HEROGOODBOYVN  # Username chính chủ!
+      RDP_USERNAME: HEROGOODBOYVN
 
     steps:
       - name: Khởi Động Máy Chủ Premium
@@ -32,46 +35,49 @@ jobs:
         run: |
           Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
           Expand-Archive ngrok.zip -DestinationPath .
-          .\ngrok\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          .\ngrok\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }} || echo "LỖI TOKEN NGROK - Check secret NGROK_AUTH_TOKEN nha boss!"
 
       - name: Bật Remote Desktop & Tối Ưu Hiệu Suất
         run: |
-          # Bật RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
 
-          # Tạo/Tùy chỉnh user chính chủ HEROGOODBOYVN
           $username = "$env:RDP_USERNAME"
           \( password = " \){{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
 
-          # Nếu user chưa tồn tại thì tạo mới, nếu có rồi thì đổi password
           if (-Not (Get-LocalUser -Name $username -ErrorAction SilentlyContinue)) {
-            New-LocalUser -Name $username -Password (ConvertTo-SecureString $password -AsPlainText -Force) -FullName "HEROGOODBOYVN Premium" -Description "Chủ máy chủ premium"
+            New-LocalUser -Name $username -Password (ConvertTo-SecureString $password -AsPlainText -Force) -FullName "HEROGOODBOYVN Premium"
             Add-LocalGroupMember -Group "Administrators" -Member $username
             Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
-            echo "Đã tạo user premium: $username"
+            echo "Tạo user premium: $username thành công!"
           } else {
             net user $username $password
-            echo "Đã cập nhật password cho user $username"
+            echo "Cập nhật password cho $username ok!"
           }
 
-          # Tối ưu hiệu suất
           powercfg -setactive SCHEME_MIN
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name "EnableTransparency" -Value 0
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
           Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
-          echo "Đã tối ưu hiệu suất - máy chạy siêu mượt!"
+          echo "Tối ưu xong - máy siêu mượt nghe nhạc chill!"
 
-      - name: Khởi chạy Ngrok & Hiển Thị Thông Tin Kết Nối
+      - name: Khởi chạy Ngrok & Hiển Thị Thông Tin Kết Nối ĐẸP LUNG LINH ✨
         run: |
           Start-Process -FilePath ".\ngrok\ngrok.exe" -ArgumentList "tcp 3389 --log=stdout" -NoNewWindow
-          echo "Đang tạo kết nối an toàn... Chờ chút nha boss! 🚀"
-          Start-Sleep -Seconds 20
+          echo "Đang tạo tunnel premium... Chờ 40 giây cho chắc ăn nha boss 🚀"
+          Start-Sleep -Seconds 40
 
-          $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels
-          $public_url = ($tunnel.tunnels | Where-Object { $_.proto -eq "tcp" }).public_url
-          $host_port = $public_url -replace 'tcp://', ''
+          try {
+            $tunnel = Invoke-RestMethod http://localhost:4040/api/tunnels -ErrorAction Stop
+            $public_url = ($tunnel.tunnels | Where-Object { $_.proto -eq "tcp" }).public_url
+            if (!$public_url) { echo "LỖI: Không lấy được tunnel - Chạy lại workflow đi boss!"; exit 1 }
+            $host_port = $public_url -replace 'tcp://', ''
+          } catch {
+            echo "LỖI NGROK: Token sai hoặc chưa chạy. Check secret NGROK_AUTH_TOKEN ngay!"
+            exit 1
+          }
+
           $rdp_user = "$env:RDP_USERNAME"
           \( rdp_pass = " \){{ secrets.RDP_PASSWORD || 'Nguyen2009' }}"
           \( running_time = " \){{ inputs.run_hours || 1 }}"
@@ -97,22 +103,21 @@ jobs:
 
           Write-Host "📱 Hướng dẫn kết nối:" -ForegroundColor Cyan
           Write-Host "   • Mở Microsoft Remote Desktop"
-          Write-Host "   • Add PC → Dán Address vào"
+          Write-Host "   • Add PC → Dán Address (có cả port)"
           Write-Host "   • Username: HEROGOODBOYVN"
-          Write-Host "   • Password: Nguyen2009 (mặc định)"
-          Write-Host "   • Connect → Vào máy chủ premium chính chủ ngay!"
+          Write-Host "   • Password: Nguyen2009"
+          Write-Host "   • Connect → Chill nghe nhạc ngay boss ơi!"
           Write-Host ""
 
-          Write-Host "💎 Máy đã được tối ưu riêng bởi HEROGOODBOYVN - siêu nhẹ, siêu mượt!" -ForegroundColor Magenta
-          Write-Host "⏰ Tự động tắt sau $running_time giờ để tiết kiệm tài nguyên."
+          Write-Host "💎 Máy đã được tối ưu riêng bởi HEROGOODBOYVN - siêu mượt!" -ForegroundColor Magenta
+          Write-Host "⏰ Tự tắt sau $running_time giờ."
           Write-Host ""
-          Write-Host "        🎉 CHÚC MỌI NGƯỜI CHƠI VUI, NGHE NHẠC CHILL! 🎉" -ForegroundColor Magenta
+          Write-Host "        🎉 CHÚC BOSS CONNECT THÀNH CÔNG, CHILL MAX! 🎉" -ForegroundColor Magenta
           Write-Host "                   Máy Chủ Premium by HEROGOODBOYVN ✨"
           Write-Host ""
 
-      - name: Giữ máy chủ hoạt động đến hết thời gian
+      - name: Giữ máy chủ hoạt động
         run: |
           \( hours = " \){{ inputs.run_hours || 1 }}"
-          echo "Máy chủ premium của HEROGOODBOYVN đang chạy ổn định $hours giờ..."
-          echo "Vào RDP với username HEROGOODBOYVN để chill nha boss! 🚀🎶"
+          echo "Máy chủ premium đang chạy $hours giờ... Vào RDP với username HEROGOODBOYVN chill đi boss! 🚀🎶"
           Start-Sleep -Seconds ${{ (inputs.run_hours || 1) * 3600 }}
