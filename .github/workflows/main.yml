@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       ngrok_download_url:
-        description: 'Ngrok download link'
+        description: 'Ngrok download link (default stable mới nhất 2026)'
         required: true
-        default: 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip'
+        default: 'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip'  # Nếu 404 thì thay bằng link mới từ ngrok.com/download
 
 jobs:
   build:
@@ -31,28 +31,22 @@ jobs:
 
       - name: Setup RDP + Max Fast Intro + Reduce Lag
         run: |
-          # Đổi tên máy chủ hợp lệ
           Rename-Computer -NewName "NCDuFlash" -Restart:$false
           Write-Host "Đã đổi tên PC thành: NCDuFlash"
 
-          # Bật RDP
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-          # Tạo/cập nhật user với tên chủ Nguyễn Chí Dự
           $user = "NguyenChiDu"
           $pass = "W1nd0ws-P4ssw0rd-2025!"
           if (-Not (Get-LocalUser -Name $user -ErrorAction SilentlyContinue)) {
             New-LocalUser $user -Password (ConvertTo-SecureString -AsPlainText $pass -Force) -FullName "Nguyễn Chí Dự"
             Add-LocalGroupMember -Group "Remote Desktop Users" -Member $user
             Add-LocalGroupMember -Group "Administrators" -Member $user
-            Write-Host "Đã tạo user mới: $user (Tên chủ: Nguyễn Chí Dự)"
           } else {
             Set-LocalUser $user -Password (ConvertTo-SecureString -AsPlainText $pass -Force)
-            Write-Host "Đã cập nhật password cho user: $user"
           }
-          
-          # Intro flash nhanh + tắt hiệu ứng
+
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name "VisualFXSetting" -Value 2
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name "MinAnimate" -Value "0"
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
@@ -60,18 +54,17 @@ jobs:
           Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name "DragFullWindows" -Value "0"
           New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\ActiveDesktop' -Force | Out-Null
           Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\ActiveDesktop' -Name "NoChangingWallPaper" -Value 1
-          
-          # Tắt services nặng
+
           @("SysMain","WSearch","wuauserv","WinDefend","DiagTrack") | ForEach-Object {
             Stop-Service -Name $_ -Force -ErrorAction SilentlyContinue
             Set-Service -Name $_ -StartupType Disabled -ErrorAction SilentlyContinue
           }
-          
-          # Giảm lag RDP tối đa
+
           New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Force | Out-Null
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "MaxCompressionLevel" -Value 2 -Type DWord
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name "VideoQualityMode" -Value 2 -Type DWord
           Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "fEnableDesktopComposition" -Value 0
+          New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations' -Force | Out-Null
           Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations' -Name "DWMFRAMEINTERVAL" -Value 10 -Type DWord
 
       - name: Start Ngrok Tunnel (Hidden) & Display RDP Info
@@ -81,16 +74,24 @@ jobs:
           Write-Host "Tên chủ: Nguyễn Chí Dự"
           Write-Host "Username: NguyenChiDu"
           Write-Host "Password: W1nd0ws-P4ssw0rd-2025!"
-          Write-Host "Intro The Flash siêu nhanh + Lag giảm max"
           Write-Host "=================================================="
-          Write-Host "Đang khởi động tunnel ngrok... (ẩn cửa sổ)"
-          
+
           Start-Process -WindowStyle Hidden -FilePath ".\ngrok.exe" -ArgumentList "tcp 3389 --log=stdout"
-          
-          Start-Sleep -Seconds 30
-          
+
+          Start-Sleep -Seconds 45  # Chờ lâu hơn
+
           $addr = ""
-          for ($i = 1; $i -le 20; $i++) {
+          for ($i = 1; $i -le 30; $i++) {
             try {
               $tunnels = Invoke-RestMethod http://localhost:4040/api/tunnels -ErrorAction Stop
-              $addr = ($tunnels.tunnels | Where-Object { $_.proto -eq "tcp" }).public_url -replace "tc
+              $tcpTunnel = $tunnels.tunnels | Where-Object { $_.proto -eq "tcp" }
+              if ($tcpTunnel) {
+                $addr = $tcpTunnel.public_url -replace 'tcp://', ''
+                Write-Host "Lấy tunnel thành công sau $i lần thử!"
+                break
+              }
+            } catch {
+              Write-Host "Đang chờ Ngrok tunnel... (lần $i/30)"
+            }
+            Start-Sleep -Seconds 15
+         
